@@ -3,20 +3,19 @@ import { useState, useEffect } from 'react'
 import { X, Loader2, Trash2 } from 'lucide-react'
 
 const STATUS_OPTS = [
-  { value: 'todo',        label: 'A Fazer'      },
-  { value: 'in_progress', label: 'Em Andamento' },
-  { value: 'done',        label: 'Concluído'    },
+  { value: 'todo',        label: '⬜ A Fazer'      },
+  { value: 'in_progress', label: '🔵 Em Andamento' },
+  { value: 'done',        label: '✅ Concluído'    },
 ]
 
 const PRIORITY_OPTS = [
-  { value: 'low',    label: 'Baixa'  },
-  { value: 'medium', label: 'Média'  },
-  { value: 'high',   label: 'Alta'   },
+  { value: 'low',    label: '🟢 Baixa'  },
+  { value: 'medium', label: '🟡 Média'  },
+  { value: 'high',   label: '🔴 Alta'   },
 ]
 
 export default function TaskModal({ task, defaultStatus, onSave, onDelete, onClose }) {
   const isEdit = !!task
-
   const [form, setForm] = useState({
     title: '',
     description: '',
@@ -45,11 +44,7 @@ export default function TaskModal({ task, defaultStatus, onSave, onDelete, onClo
     e.preventDefault()
     if (!form.title.trim()) return
     setLoading(true)
-    try {
-      await onSave(form)
-    } finally {
-      setLoading(false)
-    }
+    try { await onSave(form) } finally { setLoading(false) }
   }
 
   const handleDelete = async () => {
@@ -61,16 +56,19 @@ export default function TaskModal({ task, defaultStatus, onSave, onDelete, onClo
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-fade-in" onClick={onClose} />
+      <div
+        className="absolute inset-0 bg-black/70 backdrop-blur-sm animate-fade-in"
+        onClick={onClose}
+      />
 
       {/* Modal */}
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg animate-slide-in">
+      <div className="relative bg-surface-900 border border-surface-700 rounded-2xl shadow-2xl w-full max-w-lg animate-slide-in">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-surface-100">
-          <h3 className="font-semibold text-surface-900 text-lg">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-surface-800">
+          <h3 className="font-semibold text-surface-100 text-lg">
             {isEdit ? 'Editar tarefa' : 'Nova tarefa'}
           </h3>
-          <button onClick={onClose} className="btn-ghost rounded-lg text-surface-400 p-1.5">
+          <button onClick={onClose} className="btn-ghost rounded-lg text-surface-500 hover:text-surface-200 p-1.5">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -107,13 +105,15 @@ export default function TaskModal({ task, defaultStatus, onSave, onDelete, onClo
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="label">Status</label>
-              <select value={form.status} onChange={(e) => set('status', e.target.value)} className="input">
+              <select value={form.status} onChange={(e) => set('status', e.target.value)}
+                className="input">
                 {STATUS_OPTS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             </div>
             <div>
               <label className="label">Prioridade</label>
-              <select value={form.priority} onChange={(e) => set('priority', e.target.value)} className="input">
+              <select value={form.priority} onChange={(e) => set('priority', e.target.value)}
+                className="input">
                 {PRIORITY_OPTS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             </div>
@@ -136,7 +136,7 @@ export default function TaskModal({ task, defaultStatus, onSave, onDelete, onClo
               <button
                 type="button"
                 onClick={handleDelete}
-                className={`btn-danger rounded-xl transition-all ${confirmDelete ? 'bg-red-500 text-white border-red-500' : ''}`}
+                className={`btn-danger rounded-xl transition-all ${confirmDelete ? '!bg-red-700 !text-white !border-red-600' : ''}`}
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 {confirmDelete ? 'Confirmar exclusão' : 'Excluir'}
@@ -150,9 +150,12 @@ export default function TaskModal({ task, defaultStatus, onSave, onDelete, onClo
               <button
                 type="submit"
                 disabled={loading || !form.title.trim()}
-                className="btn-primary rounded-xl shadow-md shadow-brand-200"
+                className="btn-primary rounded-xl"
               >
-                {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> Salvando...</> : isEdit ? 'Salvar alterações' : 'Criar tarefa'}
+                {loading
+                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Salvando...</>
+                  : isEdit ? 'Salvar alterações' : 'Criar tarefa'
+                }
               </button>
             </div>
           </div>

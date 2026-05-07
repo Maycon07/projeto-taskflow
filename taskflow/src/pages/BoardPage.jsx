@@ -1,12 +1,8 @@
 // src/pages/BoardPage.jsx
 import { useState, useMemo } from 'react'
 import {
-  DndContext,
-  DragOverlay,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  closestCorners,
+  DndContext, DragOverlay, PointerSensor,
+  useSensor, useSensors, closestCorners,
 } from '@dnd-kit/core'
 import { useAuth } from '../hooks/useAuth'
 import { useTasks } from '../hooks/useTasks'
@@ -19,9 +15,9 @@ import FilterBar from '../components/FilterBar'
 import toast from 'react-hot-toast'
 
 const COLUMNS = [
-  { id: 'todo',        label: 'A Fazer',      color: 'bg-surface-400', light: 'bg-surface-50',  border: 'border-surface-200' },
-  { id: 'in_progress', label: 'Em Andamento', color: 'bg-brand-500',   light: 'bg-brand-50',    border: 'border-brand-200'   },
-  { id: 'done',        label: 'Concluído',    color: 'bg-emerald-500', light: 'bg-emerald-50',  border: 'border-emerald-200' },
+  { id: 'todo',        label: 'A Fazer'      },
+  { id: 'in_progress', label: 'Em Andamento' },
+  { id: 'done',        label: 'Concluído'    },
 ]
 
 export default function BoardPage() {
@@ -37,11 +33,11 @@ export default function BoardPage() {
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   )
 
-  // Filtragem
   const filteredTasksByStatus = useMemo(() => {
     const filter = (list) =>
       list.filter((t) => {
-        const matchSearch = !search || t.title.toLowerCase().includes(search.toLowerCase()) ||
+        const matchSearch = !search ||
+          t.title.toLowerCase().includes(search.toLowerCase()) ||
           (t.description || '').toLowerCase().includes(search.toLowerCase())
         const matchPriority = filterPriority === 'all' || t.priority === filterPriority
         return matchSearch && matchPriority
@@ -53,7 +49,6 @@ export default function BoardPage() {
     }
   }, [tasksByStatus, search, filterPriority])
 
-  // Drag handlers
   function handleDragStart(event) {
     const task = tasks.find((t) => t.id === event.active.id)
     setActiveTask(task || null)
@@ -65,7 +60,6 @@ export default function BoardPage() {
     if (!over) return
 
     const taskId = active.id
-    // over.id pode ser o id de uma coluna ou de outro card
     const overColumn = COLUMNS.find((c) => c.id === over.id)
     const overTask = tasks.find((t) => t.id === over.id)
     const newStatus = overColumn?.id || overTask?.status
@@ -104,30 +98,30 @@ export default function BoardPage() {
   }
 
   const handleSignOut = async () => {
-    try {
-      await signOut()
-    } catch {
-      toast.error('Erro ao sair')
-    }
+    try { await signOut() } catch { toast.error('Erro ao sair') }
   }
 
   return (
-    <div className="min-h-screen bg-surface-50 flex flex-col">
+    <div className="min-h-screen bg-surface-950 flex flex-col">
       <Header user={user} onSignOut={handleSignOut} />
 
       <main className="flex-1 flex flex-col px-6 py-6 max-w-screen-2xl mx-auto w-full">
         {/* Toolbar */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
           <div>
-            <h2 className="text-2xl font-bold text-surface-900 tracking-tight">Meu Board</h2>
-            <p className="text-surface-500 text-sm mt-0.5">{tasks.length} tarefa{tasks.length !== 1 ? 's' : ''} no total</p>
+            <h2 className="text-2xl font-bold text-white tracking-tight">Meu Board</h2>
+            <p className="text-surface-500 text-sm mt-0.5">
+              {tasks.length} tarefa{tasks.length !== 1 ? 's' : ''} no total
+            </p>
           </div>
-          <button onClick={() => openCreateModal()} className="btn-primary rounded-xl px-5 py-2.5 shadow-md shadow-brand-200">
+          <button
+            onClick={() => openCreateModal()}
+            className="btn-primary rounded-xl px-5 py-2.5"
+          >
             <span className="text-lg leading-none">+</span> Nova tarefa
           </button>
         </div>
 
-        {/* Filtros */}
         <FilterBar
           search={search}
           onSearch={setSearch}
@@ -135,10 +129,9 @@ export default function BoardPage() {
           onPriority={setFilterPriority}
         />
 
-        {/* Board */}
         {loading ? (
           <div className="flex-1 flex items-center justify-center">
-            <div className="w-10 h-10 rounded-full border-4 border-brand-200 border-t-brand-600 animate-spin" />
+            <div className="w-10 h-10 rounded-full border-4 border-surface-700 border-t-brand-500 animate-spin" />
           </div>
         ) : (
           <DndContext
