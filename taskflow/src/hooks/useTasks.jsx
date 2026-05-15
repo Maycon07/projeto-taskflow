@@ -1,119 +1,167 @@
-// src/hooks/useTasks.js
 import { useState, useEffect, useCallback } from 'react'
-import { getTasks, createTask, updateTask, deleteTask, moveTask, subscribeToTasks } from '../services/tasks'
+import { supabase } from '../services/supabase'
+import {
+  getTasks, createTask, updateTask, deleteTask,
+  getColumns, createColumn, updateColumn, deleteColumn,
+  createDefaultColumns, notifyAssignedUser,
+} from '../services/tasks'
+import { useAuth } from './useAuth'
 import toast from 'react-hot-toast'
 
 export function useTasks() {
-  const [tasks, setTasks] = useState([])
+  const { user } = useAuth()
+  const [tasks, setTasks]     = useState([])
+  const [columns, setColumns] = useState([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
 
-  // Carrega todas as tarefas
-  const loadTasks = useCallback(async () => {
+  const loadAll = useCallback(async () => {
+    if (!user) return
+    setLoading(true)
     try {
-      setLoading(true)
-      const data = await getTasks()
-      setTasks(data)
-      setError(null)
-    } catch (err) {
-      setError(err.message)
-      toast.error('Erro ao carregar tarefas')
+      let cols = await getColumns(user.id)
+      if (!cols || cols.length === 0) {
+        await createDefaultColumns(user.id)
+        cols = await getColumns(user.id)
+      }
+      const tasksData = await getTasks(user.id)
+      setColumns(cols)
+      setTasks(tasksData)
+    } catch (e) {
+      toast.error('Erro ao carregar dados')
+      console.error(e)
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [user])
 
-  // Criar tarefa
-  const addTask = useCallback(async (taskData) => {
+  useEffect(() => { loadAll() }, [loadAll])
+
+  // Realtime sem filtro (filtramos no client pelo owner_id)
+  useEffect(() => {
+    if (!user) return
+    const taskChannel = supabase
+      .channel('tasks-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' },
+        (payload) => {
+          if (
+            payload.new?.owner_id === user.id ||
+            payload.old?.owner_id === user.id
+          ) loadAll()
+        })
+      .subscribe()
+
+    const colChannel = supabase
+      .channel('columns-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'columns' },
+        (payload) => {
+          if (
+            payload.new?.user_id === user.id ||
+            payload.old?.user_id === user.id
+          ) loadAll()
+        })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(taskChannel)
+      supabase.removeChannel(colChannel)
+    }
+  }, [user, loadAll])
+
+  const addColumn = async ({ title, color }) => {
     try {
-      const newTask = await createTask(taskData)
-      setTasks((prev) => [newTask, ...prev])
+      const position = columns.length
+      const col = await createColumn({ userId: user.id, title, color, position })
+      setColumns(prev => [...prev, col])
+      toast.success('Coluna criada!')
+    } catch (e) {
+      toast.error('Erro ao criar coluna')
+    }
+  }
+
+  const editColumn = async (id, updates) => {
+    try {
+      const updated = await updateColumn(id, updates)
+      setColumns(prev => prev.map(c => c.id === id ? updated : c))
+    } catch (e) {
+      toast.error('Erro ao editar coluna')
+    }
+  }
+
+  const removeColumn = async (id) => {
+    try {
+      await deleteColumn(id)
+      setColumns(prev => prev.filter(c => c.id !== id))
+      setTasks(prev => prev.filter(t => t.column_id !== id))
+      toast.success('Coluna removida')
+    } catch (e) {
+      toast.error('Erro ao remover coluna')
+    }
+  }
+
+  const addTask = async (taskData) => {
+    try {
+      const newTask = await createTask({ ...taskData, owner_id: user.id })
+      setTasks(prev => [...prev, newTask])
+      if (taskData.assigned_email) {
+        await notifyAssignedUser({
+          taskTitle: taskData.title,
+          assignedEmail: taskData.assigned_email,
+          assignerName: user.email,
+          taskId: newTask.id,
+        })
+      }
       toast.success('Tarefa criada!')
       return newTask
-    } catch (err) {
-      toast.error('Erro ao criar tarefa: ' + err.message)
-      throw err
+    } catch (e) {
+      toast.error('Erro ao criar tarefa')
+      console.error(e)
     }
-  }, [])
+  }
 
-  // Atualizar tarefa
-  const editTask = useCallback(async (id, updates) => {
+  const editTask = async (id, updates) => {
     try {
+      const prevTask = tasks.find(t => t.id === id)
       const updated = await updateTask(id, updates)
-      setTasks((prev) => prev.map((t) => (t.id === id ? updated : t)))
+      setTasks(prev => prev.map(t => t.id === id ? updated : t))
+      if (updates.assigned_email && updates.assigned_email !== prevTask?.assigned_email) {
+        await notifyAssignedUser({
+          taskTitle: updated.title,
+          assignedEmail: updates.assigned_email,
+          assignerName: user.email,
+          taskId: id,
+        })
+      }
       toast.success('Tarefa atualizada!')
-      return updated
-    } catch (err) {
+    } catch (e) {
       toast.error('Erro ao atualizar tarefa')
-      throw err
+      console.error(e)
     }
-  }, [])
+  }
 
-  // Deletar tarefa
-  const removeTask = useCallback(async (id) => {
+  const removeTask = async (id) => {
     try {
       await deleteTask(id)
-      setTasks((prev) => prev.filter((t) => t.id !== id))
+      setTasks(prev => prev.filter(t => t.id !== id))
       toast.success('Tarefa removida')
-    } catch (err) {
+    } catch (e) {
       toast.error('Erro ao remover tarefa')
-      throw err
     }
-  }, [])
+  }
 
-  // Mover tarefa (drag and drop)
-  const moveTaskToColumn = useCallback(async (id, newStatus, newPosition = 0) => {
-    // Optimistic update
-    setTasks((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, status: newStatus, position: newPosition } : t))
-    )
+  const moveTask = async (taskId, newColumnId) => {
     try {
-      await moveTask(id, newStatus, newPosition)
-    } catch (err) {
+      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, column_id: newColumnId } : t))
+      await updateTask(taskId, { column_id: newColumnId })
+    } catch (e) {
       toast.error('Erro ao mover tarefa')
-      loadTasks() // Reverter
+      loadAll()
     }
-  }, [loadTasks])
-
-  // Carregar na montagem
-  useEffect(() => {
-    loadTasks()
-  }, [loadTasks])
-
-  // Realtime subscription
-  useEffect(() => {
-    const unsubscribe = subscribeToTasks((payload) => {
-      const { eventType, new: newRecord, old: oldRecord } = payload
-      if (eventType === 'INSERT') {
-        setTasks((prev) => {
-          if (prev.find((t) => t.id === newRecord.id)) return prev
-          return [newRecord, ...prev]
-        })
-      } else if (eventType === 'UPDATE') {
-        setTasks((prev) => prev.map((t) => (t.id === newRecord.id ? newRecord : t)))
-      } else if (eventType === 'DELETE') {
-        setTasks((prev) => prev.filter((t) => t.id !== oldRecord.id))
-      }
-    })
-    return unsubscribe
-  }, [])
-
-  // Tarefas agrupadas por status
-  const tasksByStatus = {
-    todo: tasks.filter((t) => t.status === 'todo').sort((a, b) => a.position - b.position),
-    in_progress: tasks.filter((t) => t.status === 'in_progress').sort((a, b) => a.position - b.position),
-    done: tasks.filter((t) => t.status === 'done').sort((a, b) => a.position - b.position),
   }
 
   return {
-    tasks,
-    tasksByStatus,
-    loading,
-    error,
-    addTask,
-    editTask,
-    removeTask,
-    moveTaskToColumn,
-    reload: loadTasks,
+    tasks, columns, loading,
+    addTask, editTask, removeTask, moveTask,
+    addColumn, editColumn, removeColumn,
+    reload: loadAll,
   }
 }

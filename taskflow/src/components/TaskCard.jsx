@@ -1,129 +1,118 @@
-// src/components/TaskCard.jsx
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Pencil, Trash2, GripVertical, CalendarDays, Clock, AlertCircle, CheckCircle2 } from 'lucide-react'
-import { format, isPast, isToday } from 'date-fns'
+import { Pencil, Trash2, Calendar, AlertCircle, Paperclip } from 'lucide-react'
+import { format, isPast, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { useState, useEffect } from 'react'
+import { getAttachments } from '../services/attachments'
 
-const PRIORITY_CONFIG = {
-  low:    { label: 'Baixa',  classes: 'bg-slate-800 text-slate-400 border border-slate-700',  dot: 'bg-slate-500' },
-  medium: { label: 'Média',  classes: 'bg-amber-950 text-amber-400 border border-amber-900',  dot: 'bg-amber-500' },
-  high:   { label: 'Alta',   classes: 'bg-red-950   text-red-400   border border-red-900',    dot: 'bg-red-500'   },
+const PRIORITY_STYLES = {
+  low:    { dot: 'bg-green-500',  badge: 'text-green-400 bg-green-500/10',  label: 'Baixa'  },
+  medium: { dot: 'bg-yellow-500', badge: 'text-yellow-400 bg-yellow-500/10', label: 'Média' },
+  high:   { dot: 'bg-red-500',    badge: 'text-red-400 bg-red-500/10',      label: 'Alta'   },
 }
 
-const STATUS_ICON = {
-  todo:        <Clock        className="w-3.5 h-3.5 text-surface-500" />,
-  in_progress: <AlertCircle  className="w-3.5 h-3.5 text-brand-400"  />,
-  done:        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400"/>,
-}
-
-export default function TaskCard({ task, onEdit, onDelete, isDragging }) {
+export function TaskCard({ task, onEdit, onDelete, isDragging }) {
   const {
-    attributes, listeners, setNodeRef, transform, transition, isDragging: isSortDragging,
-  } = useSortable({ id: task.id })
+    attributes, listeners, setNodeRef,
+    transform, transition, isDragging: isSortableDragging,
+  } = useSortable({ id: task.id, data: { columnId: task.column_id } })
+
+  const [attachmentCount, setAttachmentCount] = useState(0)
+
+  useEffect(() => {
+    if (task.id) {
+      getAttachments(task.id).then(a => setAttachmentCount(a?.length || 0)).catch(() => {})
+    }
+  }, [task.id])
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isSortDragging ? 0.3 : 1,
+    opacity: isSortableDragging ? 0.4 : 1,
   }
 
-  const priority = PRIORITY_CONFIG[task.priority] || PRIORITY_CONFIG.medium
-
-  const dueDateEl = task.due_date ? (() => {
-    const d = new Date(task.due_date + 'T00:00:00')
-    const overdue = isPast(d) && !isToday(d) && task.status !== 'done'
-    const today = isToday(d)
-    return (
-      <span className={`flex items-center gap-1 text-xs font-medium
-        ${overdue ? 'text-red-400' : today ? 'text-amber-400' : 'text-surface-500'}`}>
-        <CalendarDays className="w-3 h-3" />
-        {overdue ? '⚠ ' : today ? '• Hoje' : ''}
-        {format(d, "d MMM", { locale: ptBR })}
-      </span>
-    )
-  })() : null
+  const priority = PRIORITY_STYLES[task.priority] || PRIORITY_STYLES.medium
+  const isOverdue = task.due_date && isPast(parseISO(task.due_date))
+  const assignedProfile = task.assigned_profile
 
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={`
-        group relative card rounded-xl p-3.5 cursor-pointer select-none
-        task-card-hover
-        ${isDragging ? 'rotate-2 scale-105' : ''}
-        ${isSortDragging ? 'opacity-30' : ''}
-      `}
-      onClick={onEdit}
+      {...attributes}
+      {...listeners}
+      className={`bg-gray-800 border rounded-xl p-3 cursor-grab active:cursor-grabbing group
+        select-none transition-shadow
+        ${isDragging ? 'shadow-2xl scale-105' : 'shadow-sm hover:shadow-md'}
+        ${isOverdue ? 'border-red-500/40' : 'border-gray-700 hover:border-gray-600'}`}
     >
-      {/* Left accent bar animada no hover */}
-      <div className="absolute left-0 top-3 bottom-3 w-0.5 rounded-full bg-brand-600 opacity-0 group-hover:opacity-100 transition-all duration-200 group-hover:top-1 group-hover:bottom-1" />
-
-      {/* Top row: drag + status + priority */}
-      <div className="flex items-start justify-between gap-2 mb-2.5">
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          {/* Drag handle */}
-          <button
-            {...attributes}
-            {...listeners}
-            onClick={(e) => e.stopPropagation()}
-            className="opacity-0 group-hover:opacity-100 text-surface-600 hover:text-surface-300 cursor-grab active:cursor-grabbing transition-all duration-150 mt-0.5"
-          >
-            <GripVertical className="w-3.5 h-3.5" />
-          </button>
-          {STATUS_ICON[task.status]}
-        </div>
-
-        {/* Priority badge */}
-        <span className={`badge ${priority.classes} flex-shrink-0`}>
+      {/* Cabeçalho */}
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${priority.badge}`}>
           <span className={`w-1.5 h-1.5 rounded-full ${priority.dot}`} />
           {priority.label}
         </span>
 
-        {/* Action buttons */}
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all duration-150 flex-shrink-0">
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
-            onClick={(e) => { e.stopPropagation(); onEdit() }}
-            className="w-6 h-6 flex items-center justify-center rounded-lg text-surface-500 hover:text-brand-400 hover:bg-brand-950 transition-all duration-150"
+            onPointerDown={e => e.stopPropagation()}
+            onClick={e => { e.stopPropagation(); onEdit?.() }}
+            className="p-1 text-gray-500 hover:text-indigo-400 rounded hover:bg-gray-700 transition-colors"
           >
-            <Pencil className="w-3 h-3" />
+            <Pencil className="w-3.5 h-3.5" />
           </button>
           <button
-            onClick={(e) => { e.stopPropagation(); onDelete() }}
-            className="w-6 h-6 flex items-center justify-center rounded-lg text-surface-500 hover:text-red-400 hover:bg-red-950 transition-all duration-150"
+            onPointerDown={e => e.stopPropagation()}
+            onClick={e => { e.stopPropagation(); onDelete?.() }}
+            className="p-1 text-gray-500 hover:text-red-400 rounded hover:bg-gray-700 transition-colors"
           >
-            <Trash2 className="w-3 h-3" />
+            <Trash2 className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
 
-      {/* Title */}
-      <h4 className="text-sm font-semibold text-surface-100 leading-snug line-clamp-2 mb-1.5 pl-5 group-hover:text-white transition-colors duration-150">
-        {task.title}
-      </h4>
+      {/* Título */}
+      <p className="text-white text-sm font-medium leading-snug mb-2">{task.title}</p>
 
-      {/* Description */}
+      {/* Descrição */}
       {task.description && (
-        <p className="text-xs text-surface-500 line-clamp-2 mb-2.5 pl-5 group-hover:text-surface-400 transition-colors duration-150">
+        <p className="text-gray-400 text-xs leading-relaxed line-clamp-2 mb-2">
           {task.description}
         </p>
       )}
 
       {/* Footer */}
-      <div className="flex items-center justify-between pl-5 mt-1">
-        {dueDateEl || <span />}
-        <div
-          className="w-6 h-6 rounded-full bg-brand-800 ring-1 ring-brand-700 flex items-center justify-center text-brand-300 text-[10px] font-bold group-hover:ring-brand-500 transition-all duration-150"
-          title={task.owner_name || task.owner_email}
-        >
-          {(task.owner_name || task.owner_email || '?')[0].toUpperCase()}
-        </div>
-      </div>
+      <div className="flex items-center justify-between gap-2 mt-2">
+        <div className="flex items-center gap-2">
+          {/* Data */}
+          {task.due_date && (
+            <div className={`flex items-center gap-1 text-xs ${isOverdue ? 'text-red-400' : 'text-gray-500'}`}>
+              {isOverdue ? <AlertCircle className="w-3.5 h-3.5" /> : <Calendar className="w-3.5 h-3.5" />}
+              {format(parseISO(task.due_date), 'dd MMM', { locale: ptBR })}
+            </div>
+          )}
 
-      {/* Done overlay */}
-      {task.status === 'done' && (
-        <div className="absolute inset-0 rounded-xl bg-emerald-950/10 pointer-events-none" />
-      )}
+          {/* Anexos */}
+          {attachmentCount > 0 && (
+            <div className="flex items-center gap-1 text-xs text-gray-500">
+              <Paperclip className="w-3 h-3" />
+              {attachmentCount}
+            </div>
+          )}
+        </div>
+
+        {/* Avatar responsável */}
+        {(assignedProfile || task.assigned_email) && (
+          <div
+            className="w-6 h-6 rounded-full bg-indigo-600 flex items-center justify-center
+              text-white text-xs font-bold flex-shrink-0 ring-2 ring-gray-800"
+            title={assignedProfile?.full_name || assignedProfile?.email || task.assigned_email}
+          >
+            {(assignedProfile?.full_name || assignedProfile?.email || task.assigned_email || '?')[0].toUpperCase()}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
