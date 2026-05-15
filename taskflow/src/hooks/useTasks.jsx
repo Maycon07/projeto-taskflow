@@ -23,7 +23,7 @@ export function useTasks() {
         await createDefaultColumns(user.id)
         cols = await getColumns(user.id)
       }
-      const tasksData = await getTasks(user.id)
+      const tasksData = await getTasks()
       setColumns(cols)
       setTasks(tasksData)
     } catch (e) {
@@ -42,12 +42,7 @@ export function useTasks() {
     const taskChannel = supabase
       .channel('tasks-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' },
-        (payload) => {
-          if (
-            payload.new?.owner_id === user.id ||
-            payload.old?.owner_id === user.id
-          ) loadAll()
-        })
+        () => loadAll())
       .subscribe()
 
     const colChannel = supabase

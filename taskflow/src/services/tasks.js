@@ -54,7 +54,6 @@ export async function getTasks(userId) {
         id, email, full_name, avatar_url
       )
     `)
-    .eq('owner_id', userId)
     .order('position', { ascending: true })
   if (error) throw error
   return data
