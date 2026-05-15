@@ -2,7 +2,7 @@ import { supabase } from './supabase'
 
 // ─── COLUMNS ────────────────────────────────────────────────────────────────
 
-export async function getColumns() {
+export async function getColumns(userId) {
   const { data, error } = await supabase
     .from('columns')
     .select('*')
