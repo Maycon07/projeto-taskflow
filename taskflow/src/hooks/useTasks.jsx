@@ -18,10 +18,10 @@ export function useTasks() {
     if (!user) return
     setLoading(true)
     try {
-      let cols = await getColumns(user.id)
+      let cols = await getColumns()
       if (!cols || cols.length === 0) {
         await createDefaultColumns(user.id)
-        cols = await getColumns(user.id)
+        cols = await getColumns()
       }
       const tasksData = await getTasks()
       setColumns(cols)

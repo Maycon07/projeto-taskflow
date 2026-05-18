@@ -2,11 +2,10 @@ import { supabase } from './supabase'
 
 // ─── COLUMNS ────────────────────────────────────────────────────────────────
 
-export async function getColumns(userId) {
+export async function getColumns() {
   const { data, error } = await supabase
     .from('columns')
     .select('*')
-    .eq('user_id', userId)
     .order('position', { ascending: true })
   if (error) throw error
   return data
